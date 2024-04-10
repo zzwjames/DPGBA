@@ -1,8 +1,7 @@
 # DPGBA
 
-'''
-cd run or run_arxiv
 
-
+cd run
 bash script/train_DPGBA.sh
-'''
+
+
