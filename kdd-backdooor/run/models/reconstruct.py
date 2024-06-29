@@ -46,8 +46,7 @@ class MLPAE(nn.Module):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            print(f'Epoch [{epoch+1}], Loss: {loss.item():.4f}')
-
+           
     # def inference(self, input):
     #     self.model.eval()
     #     reconstruction_errors = []

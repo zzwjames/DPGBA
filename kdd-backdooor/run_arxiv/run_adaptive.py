@@ -24,7 +24,7 @@ parser.add_argument('--debug', action='store_true',
         default=True, help='debug mode')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
-parser.add_argument('--seed', type=int, default=12, help='Random seed.')
+parser.add_argument('--seed', type=int, default=10, help='Random seed.')
 parser.add_argument('--model', type=str, default='GCN', help='model',
                     choices=['GCN','GAT','GraphSage','GIN'])
 parser.add_argument('--dataset', type=str, default='Pubmed', 
@@ -37,7 +37,7 @@ parser.add_argument('--weight_decay', type=float, default=5e-4,
 parser.add_argument('--hidden', type=int, default=512,
                     help='Number of hidden units.')
 parser.add_argument('--thrd', type=float, default=0.5)
-parser.add_argument('--target_class', type=int, default=2)
+parser.add_argument('--target_class', type=int, default=0)
 parser.add_argument('--k', type=int, default=100)
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
@@ -185,7 +185,7 @@ elif(args.selection_method == 'cluster_degree'):
     idx_attach = torch.LongTensor(idx_attach).to(device)
 # print("idx_attach: {}".format(idx_attach))
 unlabeled_idx = torch.tensor(list(set(unlabeled_idx.cpu().numpy()) - set(idx_attach.cpu().numpy()))).to(device)
-print('unlabeled_idx',len(unlabeled_idx))
+# print('unlabeled_idx',len(unlabeled_idx))
 # In[10]:
 # train trigger generator 
 model = Backdoor(args,device)
@@ -206,8 +206,7 @@ elif(args.defense_mode == 'reconstruct'):
     bkd_tn_nodes = torch.cat([idx_train,idx_attach]).to(device)
 else:
     bkd_tn_nodes = torch.cat([idx_train,idx_attach]).to(device)
-print("precent of left attach nodes: {:.3f}"\
-    .format(len(set(bkd_tn_nodes.tolist()) & set(idx_attach.tolist()))/len(idx_attach)))
+
 
 
 # models = ['GCN','GAT', 'GraphSage']
@@ -230,20 +229,20 @@ for test_model in models:
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
         torch.cuda.manual_seed(args.seed)
-        print(args)
+        # print(args)
         #%%
         test_model = model_construct(args,args.test_model,data,device).to(device) 
         test_model.fit(poison_x, poison_edge_index, poison_edge_weights, poison_labels, bkd_tn_nodes, idx_val,train_iters=args.epochs,verbose=False)
 
         output, x = test_model(poison_x,poison_edge_index,poison_edge_weights)
         train_attach_rate = (output.argmax(dim=1)[idx_attach]==args.target_class).float().mean()
-        print("target class rate on Vs: {:.4f}".format(train_attach_rate))
+        # print("target class rate on Vs: {:.4f}".format(train_attach_rate))
         #%%
         induct_edge_index = torch.cat([poison_edge_index,mask_edge_index],dim=1)
         induct_edge_weights = torch.cat([poison_edge_weights,torch.ones([mask_edge_index.shape[1]],dtype=torch.float,device=device)])
         clean_acc = test_model.test(poison_x,induct_edge_index,induct_edge_weights,data.y,idx_clean_test)
 
-        print("accuracy on clean test nodes: {:.4f}".format(clean_acc))
+        # print("accuracy on clean test nodes: {:.4f}".format(clean_acc))
 
 
         if(args.evaluate_mode == '1by1'):
@@ -285,8 +284,8 @@ for test_model in models:
                     output = output.cpu()
             asr = asr/(idx_atk.shape[0])
             flip_asr = flip_asr/(flip_idx_atk.shape[0])
-            print("Overall ASR: {:.4f}".format(asr))
-            print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
+            # print("Overall ASR: {:.4f}".format(asr))
+            # print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
         elif(args.evaluate_mode == 'overall'):
             # %% inject trigger on attack test nodes (idx_atk)'''
             induct_x, induct_edge_index,induct_edge_weights = model.inject_trigger(idx_atk,poison_x,induct_edge_index,induct_edge_weights,device)
@@ -301,13 +300,13 @@ for test_model in models:
                 
             output, x = test_model(induct_x,induct_edge_index,induct_edge_weights)
             train_attach_rate = (output.argmax(dim=1)[idx_atk]==args.target_class).float().mean()
-            print("ASR: {:.4f}".format(train_attach_rate))
+            # print("ASR: {:.4f}".format(train_attach_rate))
             asr = train_attach_rate
             flip_idx_atk = idx_atk[(data.y[idx_atk] != args.target_class).nonzero().flatten()]
             flip_asr = (output.argmax(dim=1)[flip_idx_atk]==args.target_class).float().mean()
-            print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
+            # print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
             ca = test_model.test(induct_x,induct_edge_index,induct_edge_weights,data.y,idx_clean_test)
-            print("CA: {:.4f}".format(ca))
+            # print("CA: {:.4f}".format(ca))
 
             induct_x, induct_edge_index,induct_edge_weights = induct_x.cpu(), induct_edge_index.cpu(),induct_edge_weights.cpu()
             output = output.cpu()
@@ -319,8 +318,8 @@ for test_model in models:
         
     overall_asr = overall_asr/len(seeds)
     overall_ca = overall_ca/len(seeds)
-    print("Overall ASR: {:.4f} ({} model, Seed: {})".format(overall_asr, args.test_model, args.seed))
-    print("Overall Clean Accuracy: {:.4f}".format(overall_ca))
+    # print("Overall ASR: {:.4f} ({} model, Seed: {})".format(overall_asr, args.test_model, args.seed))
+    # print("Overall Clean Accuracy: {:.4f}".format(overall_ca))
 
     total_overall_asr += overall_asr
     total_overall_ca += overall_ca

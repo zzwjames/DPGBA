@@ -454,13 +454,12 @@ class Backdoor:
         rec_score_ori = AE.inference(features_select)
         mean_ori = torch.mean(rec_score_ori)
         std_ori = torch.std(rec_score_ori)
-        print('mean',mean_ori)
-        print('std',std_ori)
+
         condition = torch.abs(rec_score_ori - mean_ori) < args.range*std_ori
 
         # Apply the condition to filter the features
         selected_features = features_select[condition]
-        print(len(selected_features))
+
         
 
     
@@ -560,13 +559,6 @@ class Backdoor:
                 idx_outter = torch.cat([idx_attach,idx_unlabeled])
             
 
-            # from torch_geometric.utils import k_hop_subgraph
-            # subset, selected_edge_index, mapping, edge_mask = k_hop_subgraph(
-            #             idx_outter, 2, poison_edge_index, relabel_nodes=True)
-            # print(selected_edge_index)
-            
-            # print('idx_outter',idx_outter)
-
             trojan_feat, trojan_weights = self.trojan(features[idx_outter],self.args.thrd) # may revise the process of generate
 
             trojan_weights = torch.cat([torch.ones([len(idx_outter),1],dtype=torch.float,device=self.device),trojan_weights],dim=1)
@@ -580,34 +572,22 @@ class Backdoor:
             update_edge_index = torch.cat([edge_index,trojan_edge],dim=1)
 
             output,all_features = self.shadow_model(update_feat, update_edge_index, update_edge_weights)            
-            output_ori,all_features_ori = self.shadow_model(features, edge_index, edge_weight)
             output_detector= self.ood_detector(update_feat)
 
             labels_outter = labels.clone()
             labels_outter[idx_outter] = args.target_class
-            
-            
- 
-            # loss_target = self.args.target_loss_weight *F.nll_loss(output[idx_outter],
-            #                         labels_outter[idx_outter])
 
             probabilities = torch.exp(output[idx_outter])
             probabilities_target = probabilities[:,self.args.target_class]
             weights = torch.exp(-probabilities_target)
             weights = weights.detach()
-            loss_function = nn.CrossEntropyLoss(reduction='none')
+            
             losses = F.nll_loss(output[idx_outter], labels_outter[idx_outter],reduction='none')  # This will be a tensor of the same shape as your batch
             loss_target = losses * (weights+1)
             loss_target = loss_target.mean()
-
-            
             sim = self.con_loss_1(all_features[idx_outter],all_features[idx_train],self.labels[idx_train],output[idx_train])
             loss_targetclass = sim - self.simi(all_features[idx_outter],all_features[idx_outter]).fill_diagonal_(0).mean()
-            
-
             loss_dis = F.nll_loss(output_detector[-len(trojan_feat):], torch.ones(len(trojan_feat),device=self.device).long())
-
-            loss_homo = 0.0
 
             # if(self.args.homo_loss_weight > 0):
             #     loss_homo = self.homo_loss(trojan_edge[:,:int(trojan_edge.shape[1]/2)],\
@@ -617,7 +597,7 @@ class Backdoor:
                 
             loss_outter = 0
             loss_outter += loss_target * self.args.weight_target
-            loss_outter += loss_dis * self.args.weight_ood * 1
+            loss_outter += loss_dis * self.args.weight_ood
             loss_outter += loss_targetclass * self.args.weight_targetclass
             # pubmed
             # loss_outter += loss_homo * 10
@@ -630,13 +610,13 @@ class Backdoor:
                 self.weights = deepcopy(self.trojan.state_dict())
                 loss_best = float(loss_outter)
 
-            if args.debug and i % 10 == 0:
-                print('Epoch {}, loss_inner: {:.5f}, loss_target: {:.5f}, homo loss: {:.5f}, loss_dis: {:.5f}, loss_diff: {:.5f}, loss_adv: {:.5f}, loss_targetclass: {:.5f}, ood_score: {:.5f} '\
-                        .format(i, loss_inner, loss_target, loss_homo, loss_dis, loss_dis, loss_target, loss_targetclass,  torch.exp(output_detector[-len(trojan_feat):][:,-1:]).mean()))
+            if args.debug and i % 50 == 0:
+                print('Epoch {}, loss_inner: {:.5f}, loss_target: {:.5f},  loss_dis: {:.5f}, loss_diff: {:.5f}, loss_adv: {:.5f}, loss_targetclass: {:.5f}, ood_score: {:.5f} '\
+                        .format(i, loss_inner, loss_target,  loss_dis, loss_dis, loss_target, loss_targetclass,  torch.exp(output_detector[-len(trojan_feat):][:,-1:]).mean()))
                 print("acc_train_clean: {:.4f}, ASR_train_attach: {:.4f}, ASR_train_outter: {:.4f}"\
                         .format(acc_train_clean,acc_train_attach,acc_train_outter))
-        if args.debug:
-            print("load best weight based on the loss outter")
+        # if args.debug:
+        #     print("load best weight based on the loss outter")
         # self.trojan.load_state_dict(self.weights)
         state_dict = self.trojan.state_dict()
         torch.save(state_dict, 'model_weights.pth')

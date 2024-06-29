@@ -529,13 +529,10 @@ class Backdoor:
         rec_score_ori = AE.inference(features_select)
         mean_ori = torch.mean(rec_score_ori)
         std_ori = torch.std(rec_score_ori)
-        print('mean',mean_ori)
-        print('std',std_ori)
         condition = torch.abs(rec_score_ori - mean_ori) < args.range*std_ori
 
         # Apply the condition to filter the features
         selected_features = features_select[condition]
-        print(len(selected_features))
         
 
     
@@ -706,8 +703,8 @@ class Backdoor:
                 # print("acc_train_clean: {:.4f}, ASR_train_attach: {:.4f}, ASR_train_outter: {:.4f}"\
                 #         .format(acc_train_clean,acc_train_attach,acc_train_outter))
         end_time = time.time()
-        if args.debug:
-            print("load best weight based on the loss outter")
+        # if args.debug:
+        #     print("load best weight based on the loss outter")
         # self.trojan.load_state_dict(self.weights)
         state_dict = self.trojan.state_dict()
         torch.save(state_dict, 'model_weights.pth')
