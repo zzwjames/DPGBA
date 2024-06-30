@@ -12,7 +12,7 @@ The packages can be installed by directly run the commands in install.sh by
   
 
 
-> bash install.sh
+    bash install.sh
 
   
 
@@ -20,7 +20,7 @@ The packages can be installed by directly run the commands in install.sh by
 
   
 
-> bash script/train_DPGBA.sh
+    bash script/train_DPGBA.sh
 
 **NOTES**
 
