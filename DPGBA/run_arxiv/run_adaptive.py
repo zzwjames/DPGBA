@@ -60,7 +60,7 @@ parser.add_argument('--vs_number', type=int, default=40,
                     help="number of poisoning nodes relative to the full graph")
 # defense setting
 parser.add_argument('--defense_mode', type=str, default="reconstruct",
-                    choices=['prune', 'isolate', 'none','reconstruct'],
+                    choices=['none','reconstruct'],
                     help="Mode of defense")
 parser.add_argument('--prune_thr', type=float, default=0.8,
                     help="Threshold of prunning edges")

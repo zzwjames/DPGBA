@@ -32,7 +32,7 @@ The packages can be installed by directly run the commands in install.sh by
 
 3. When an outlier detection method is adopted, please also tune the parameter **'weight_ood'** for $\mathcal{L}_D$ to achieve a balance between stealthiness and attack performance.
 
-If you find our this repo to be useful, please consider cite our [paper](https://arxiv.org/abs/2405.10757). Thank you.
+If you find this repo to be useful, please consider cite our [paper](https://arxiv.org/abs/2405.10757). Thank you.
 
     @article{zhang2024rethinking,
       title={Rethinking Graph Backdoor Attacks: A Distribution-Preserving Perspective},
