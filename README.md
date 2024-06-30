@@ -11,7 +11,8 @@ The packages can be installed by directly run the commands in install.sh by
 
   
 
-bash install.sh
+
+> bash install.sh
 
   
 
@@ -19,7 +20,7 @@ bash install.sh
 
   
 
-bash script/train_DPGBA.sh
+> bash script/train_DPGBA.sh
 
 **NOTES**
 
@@ -32,11 +33,11 @@ bash script/train_DPGBA.sh
 If you find our this repo to be useful, please consider cite our paper. Thank you.
 
     @article{zhang2024rethinking,
-  title={Rethinking Graph Backdoor Attacks: A Distribution-Preserving Perspective},
-  author={Zhang, Zhiwei and Lin, Minhua and Dai, Enyan and Wang, Suhang},
-  journal={arXiv preprint arXiv:2405.10757},
-  year={2024}
-}
+      title={Rethinking Graph Backdoor Attacks: A Distribution-Preserving Perspective},
+      author={Zhang, Zhiwei and Lin, Minhua and Dai, Enyan and Wang, Suhang},
+      journal={arXiv preprint arXiv:2405.10757},
+      year={2024}
+    }
 
   
 
