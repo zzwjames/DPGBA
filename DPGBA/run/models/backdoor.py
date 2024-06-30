@@ -234,11 +234,9 @@ class Backdoor:
         z2_non_target = z2[labels != self.args.target_class]
         _, sorted_indices = torch.sort(output_target, descending=True)
         sorted_z2_target = z2_target[sorted_indices]
-        # Here we use mean of representations from target class to reduce computation cost,
-        # as empirical results don't show much difference
+        # Here we randomly select some samples from target class to reduce computation cost
         N = 10  
         top_embeddings = sorted_z2_target[:N]
-        synthesized_embedding = torch.mean(top_embeddings, dim=0, keepdim=True)
         intra = f(self.simi(z1, top_embeddings))              
         inter = f(self.simi(z1, z2_non_target))
         one_to_all_inter=inter.sum(1,keepdim=True)
@@ -246,6 +244,20 @@ class Backdoor:
         denomitor = one_to_all_inter + intra
         loss += -torch.log(intra/denomitor).mean()
         return loss
+    
+    ## here is the complete version of con_loss, feel free to use this one ##
+    # def con_loss(self, z1, z2, labels):
+    #     f = lambda x: torch.exp(x / 1.0)
+    #     z2_target = z2[labels == self.args.target_class]
+    #     z2_non_target = z2[labels != self.args.target_class]
+    #     loss = 0
+    #     intra = f(self.simi(z1, z2_target))        
+    #     inter = f(self.simi(z1, z2_non_target))
+    #     one_to_all_inter=inter.sum(1,keepdim=True)
+    #     one_to_all_inter=one_to_all_inter.repeat(1,len(intra[0]))
+    #     denomitor = one_to_all_inter + intra
+    #     loss = -torch.log(intra/denomitor).mean()
+    #     return loss
 
     def fit(self, features, edge_index, edge_weight, labels, idx_train, idx_attach,idx_unlabeled):
         args = self.args

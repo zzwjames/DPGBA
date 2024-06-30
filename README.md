@@ -26,9 +26,11 @@ The packages can be installed by directly run the commands in install.sh by
 
   
 
-1. When there are no defense methods, increasing the value of **weight_target** for $\mathcal{L}_T$ and **weight_targetclass** for $\mathcal{L}_E$ will enhance the attack performance.
+1. Set **'defense_mode=reconstruct'** to introduce outlier detection; set **'defense_mode=none'** for the case of no defense method.
 
-2. When an outlier detection method is adopted, please also tune the parameter **weight_ood** for $\mathcal{L}_D$ to achieve a balance between stealthiness and attack performance.
+2. When there are no defense methods, increasing the value of **'weight_target'** for $\mathcal{L}_T$ and **'weight_targetclass'** for $\mathcal{L}_E$ will enhance the attack performance.
+
+3. When an outlier detection method is adopted, please also tune the parameter **'weight_ood'** for $\mathcal{L}_D$ to achieve a balance between stealthiness and attack performance.
 
 If you find our this repo to be useful, please consider cite our [paper](https://arxiv.org/abs/2405.10757). Thank you.
 
