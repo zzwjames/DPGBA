@@ -64,20 +64,14 @@ parser.add_argument('--defense_mode', type=str, default="reconstruct",
                     help="Mode of defense")
 parser.add_argument('--prune_thr', type=float, default=0.8,
                     help="Threshold of prunning edges")
-parser.add_argument('--target_loss_weight', type=float, default=1,
-                    help="Weight of optimize outter trigger generator")
 parser.add_argument('--weight_target', type=float, default=1,
-                    help="Weight of optimize outter trigger generator")
+                    help="Weight of attack loss")
 parser.add_argument('--weight_ood', type=float, default=1,
-                    help="Weight of optimize outter trigger generator")
+                    help="Weight of ood constraint")
 parser.add_argument('--weight_targetclass', type=float, default=1,
-                    help="Weight of optimize outter trigger generator")
+                    help="Weight of enhancing attack loss")
 parser.add_argument('--outter_size', type=int, default=4096,
                     help="Weight of optimize outter trigger generator")
-parser.add_argument('--homo_loss_weight', type=float, default=100,
-                    help="Weight of optimize similarity loss")
-parser.add_argument('--homo_boost_thrd', type=float, default=0.8,
-                    help="Threshold of increase similarity")
 # attack setting
 parser.add_argument('--dis_weight', type=float, default=1,
                     help="Weight of cluster distance")
@@ -87,12 +81,9 @@ parser.add_argument('--selection_method', type=str, default='none',
 parser.add_argument('--test_model', type=str, default='GCN',
                     choices=['GCN','GAT','GraphSage','GIN'],
                     help='Model used to attack')
-parser.add_argument('--evaluate_mode', type=str, default='overall',
-                    choices=['overall','1by1'],
-                    help='Model used to attack')
 # GPU setting
-parser.add_argument('--device_id', type=int, default=2,
-                    help="Threshold of prunning edges")
+parser.add_argument('--device_id', type=int, default=3,
+                    help="devicer id")
 # args = parser.parse_args()
 args = parser.parse_known_args()[0]
 args.cuda =  not args.no_cuda and torch.cuda.is_available()
@@ -135,16 +126,6 @@ if(args.dataset == 'ogbn-arxiv'):
     data.val_mask = torch.zeros(nNode, dtype=torch.bool).to(device)
     data.test_mask = torch.zeros(nNode, dtype=torch.bool).to(device)
     data.y = data.y.squeeze(1)
-    
-if(args.dataset == 'Reddit2'):
-    num_nodes_to_sample = 20000  # Adjust this based on your needs
-
-    # Randomly select a subset of nodes
-    sampled_nodes = torch.randint(data.num_nodes, (num_nodes_to_sample,), device=device)
-
-    # Perform subgraph sampling
-    edge,_ = subgraph(sampled_nodes, data.edge_index)
-    data.edge_index = edge
 # we build our own train test split 
 #%% 
 from utils import get_split
@@ -156,15 +137,12 @@ data.edge_index = to_undirected(data.edge_index)
 train_edge_index,_, edge_mask = subgraph(torch.bitwise_not(data.test_mask),data.edge_index,relabel_nodes=False)
 mask_edge_index = data.edge_index[:,torch.bitwise_not(edge_mask)]
 
-
 # In[9]:
 
 from sklearn_extra import cluster
 from models.backdoor import Backdoor
 from models.construct import model_construct
 import heuristic_selection as hs
-
-# from kmeans_pytorch import kmeans, kmeans_predict
 
 # filter out the unlabeled nodes except from training nodes and testing nodes, nonzero() is to get index, flatten is to get 1-d tensor
 unlabeled_idx = (torch.bitwise_not(data.test_mask)&torch.bitwise_not(data.train_mask)).nonzero().flatten()
@@ -186,11 +164,8 @@ elif(args.selection_method == 'cluster_degree'):
     else:
         idx_attach = hs.cluster_degree_selection(args,data,idx_train,idx_val,idx_clean_test,unlabeled_idx,train_edge_index,size,device)
     idx_attach = torch.LongTensor(idx_attach).to(device)
-# print("idx_attach: {}".format(idx_attach))
 unlabeled_idx = torch.tensor(list(set(unlabeled_idx.cpu().numpy()) - set(idx_attach.cpu().numpy()))).to(device)
-# print('unlabeled_idx',len(unlabeled_idx))
-# In[10]:
-# train trigger generator 
+
 model = Backdoor(args,device)
 model.fit(data.x, train_edge_index, None, data.y, idx_train,idx_attach, unlabeled_idx)
 poison_x, poison_edge_index, poison_edge_weights, poison_labels = model.get_poisoned()
@@ -204,8 +179,6 @@ elif(args.defense_mode == 'isolate'):
     bkd_tn_nodes = torch.LongTensor(list(set(bkd_tn_nodes) - set(rel_nodes))).to(device)
 elif(args.defense_mode == 'reconstruct'):
     poison_edge_index,poison_edge_weights = reconstruct_prune_unrelated_edge(args,poison_edge_index,poison_edge_weights,poison_x,data.x,data.edge_index,device, idx_attach, large_graph=True)
-    # str_reconstruct_prune_unrelated_edge(args,poison_edge_index,poison_edge_weights,poison_x, data.x, data.edge_index, device,False)
-    # str_reconstruct_prune_unrelated_edge(args,poison_edge_index,poison_edge_weights,poison_x, data.x,data.edge_index, device, idx_train, False)
     bkd_tn_nodes = torch.cat([idx_train,idx_attach]).to(device)
 else:
     bkd_tn_nodes = torch.cat([idx_train,idx_attach]).to(device)
@@ -225,87 +198,26 @@ for test_model in models:
 
     output, x = test_model(poison_x,poison_edge_index,poison_edge_weights)
     train_attach_rate = (output.argmax(dim=1)[idx_attach]==args.target_class).float().mean()
-    # print("target class rate on Vs: {:.4f}".format(train_attach_rate))
     #%%
     induct_edge_index = torch.cat([poison_edge_index,mask_edge_index],dim=1)
     induct_edge_weights = torch.cat([poison_edge_weights,torch.ones([mask_edge_index.shape[1]],dtype=torch.float,device=device)])
     clean_acc = test_model.test(poison_x,induct_edge_index,induct_edge_weights,data.y,idx_clean_test)
 
-    # print("accuracy on clean test nodes: {:.4f}".format(clean_acc))
-
-
-    if(args.evaluate_mode == '1by1'):
-        from torch_geometric.utils  import k_hop_subgraph
-        overall_induct_edge_index, overall_induct_edge_weights = induct_edge_index.clone(),induct_edge_weights.clone()
-        asr = 0
-        flip_asr = 0
-        flip_idx_atk = idx_atk[(data.y[idx_atk] != args.target_class).nonzero().flatten()]
-        for i, idx in enumerate(idx_atk):
-            idx=int(idx)
-            sub_induct_nodeset, sub_induct_edge_index, sub_mapping, sub_edge_mask  = k_hop_subgraph(node_idx = [idx], num_hops = 2, edge_index = overall_induct_edge_index, relabel_nodes=True) # sub_mapping means the index of [idx] in sub)nodeset
-            ori_node_idx = sub_induct_nodeset[sub_mapping]
-            relabeled_node_idx = sub_mapping
-            sub_induct_edge_weights = torch.ones([sub_induct_edge_index.shape[1]]).to(device)
-            with torch.no_grad():
-                # inject trigger on attack test nodes (idx_atk)'''
-                induct_x, induct_edge_index,induct_edge_weights = model.inject_trigger(relabeled_node_idx,poison_x[sub_induct_nodeset],sub_induct_edge_index,sub_induct_edge_weights,device)
-                
-                # pattern = torch.tensor(data.x[idx_train][:,-20:].mean(dim=0),device=device)
-                # induct_x[:, -20:] = pattern
-                # torch.cat((induct_x,pattern.repeat(len(induct_x),1)),dim=1)
-                
-                
-                induct_x, induct_edge_index,induct_edge_weights = induct_x.clone().detach(), induct_edge_index.clone().detach(),induct_edge_weights.clone().detach()
-                # # do pruning in test datas'''
-                torch.save(induct_x,'tensor.pt')
-                if(args.defense_mode == 'prune' or args.defense_mode == 'isolate'):
-                    induct_edge_index,induct_edge_weights = prune_unrelated_edge(args,induct_edge_index,induct_edge_weights,induct_x,device,False)
-                # attack evaluation
-                # else:
-                #     induct_edge_index,induct_edge_weights = clu_prune_unrelated_edge(args,induct_edge_index,induct_edge_weights,induct_x,device,False)
-                # print('prune over')
-                output, x = test_model(induct_x,induct_edge_index,induct_edge_weights)
-                train_attach_rate = (output.argmax(dim=1)[relabeled_node_idx]==args.target_class).float().mean()
-                asr += train_attach_rate
-                if(data.y[idx] != args.target_class):
-                    flip_asr += train_attach_rate
-                induct_x, induct_edge_index,induct_edge_weights = induct_x.cpu(), induct_edge_index.cpu(),induct_edge_weights.cpu()
-                output = output.cpu()
-        asr = asr/(idx_atk.shape[0])
-        flip_asr = flip_asr/(flip_idx_atk.shape[0])
-        print("Overall ASR: {:.4f}".format(asr))
-        print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
-    elif(args.evaluate_mode == 'overall'):
-        # %% inject trigger on attack test nodes (idx_atk)'''
-        induct_x, induct_edge_index,induct_edge_weights = model.inject_trigger(idx_atk,poison_x,induct_edge_index,induct_edge_weights,device)
-        induct_x, induct_edge_index,induct_edge_weights = induct_x.clone().detach(), induct_edge_index.clone().detach(),induct_edge_weights.clone().detach()
-        # do pruning in test datas'''
-        if(args.defense_mode == 'prune' or args.defense_mode == 'isolate'):
-            induct_edge_index,induct_edge_weights = prune_unrelated_edge(args,induct_edge_index,induct_edge_weights,induct_x,device)
-        # attack evaluation
-        
-        # cluster
-        
-            
-        output, x = test_model(induct_x,induct_edge_index,induct_edge_weights)
-        train_attach_rate = (output.argmax(dim=1)[idx_atk]==args.target_class).float().mean()
-        # print("ASR: {:.4f}".format(train_attach_rate))
-        asr = train_attach_rate
-        flip_idx_atk = idx_atk[(data.y[idx_atk] != args.target_class).nonzero().flatten()]
-        flip_asr = (output.argmax(dim=1)[flip_idx_atk]==args.target_class).float().mean()
-        # print("Flip ASR: {:.4f}/{} nodes".format(flip_asr,flip_idx_atk.shape[0]))
-        ca = test_model.test(induct_x,induct_edge_index,induct_edge_weights,data.y,idx_clean_test)
-        # print("CA: {:.4f}".format(ca))
-
-        induct_x, induct_edge_index,induct_edge_weights = induct_x.cpu(), induct_edge_index.cpu(),induct_edge_weights.cpu()
-        output = output.cpu()
-
+    induct_x, induct_edge_index,induct_edge_weights = model.inject_trigger(idx_atk,poison_x,induct_edge_index,induct_edge_weights,device)
+    induct_x, induct_edge_index,induct_edge_weights = induct_x.clone().detach(), induct_edge_index.clone().detach(),induct_edge_weights.clone().detach()
+    if(args.defense_mode == 'prune' or args.defense_mode == 'isolate'):
+        induct_edge_index,induct_edge_weights = prune_unrelated_edge(args,induct_edge_index,induct_edge_weights,induct_x,device)
+    output, x = test_model(induct_x,induct_edge_index,induct_edge_weights)
+    train_attach_rate = (output.argmax(dim=1)[idx_atk]==args.target_class).float().mean()
+    asr = train_attach_rate
+    flip_idx_atk = idx_atk[(data.y[idx_atk] != args.target_class).nonzero().flatten()]
+    flip_asr = (output.argmax(dim=1)[flip_idx_atk]==args.target_class).float().mean()
+    ca = test_model.test(induct_x,induct_edge_index,induct_edge_weights,data.y,idx_clean_test)
+    induct_x, induct_edge_index,induct_edge_weights = induct_x.cpu(), induct_edge_index.cpu(),induct_edge_weights.cpu()
+    output = output.cpu()
     overall_asr += asr
     overall_ca += clean_acc
-
     test_model = test_model.cpu()
-        
-
     total_overall_asr += overall_asr
     total_overall_ca += overall_ca
     test_model.to(torch.device('cpu'))
