@@ -34,10 +34,11 @@ The packages can be installed by directly run the commands in install.sh by
 
 If you find this repo to be useful, please consider cite our [paper](https://arxiv.org/abs/2405.10757). Thank you.
 
-    @article{zhang2024rethinking,
-      title={Rethinking Graph Backdoor Attacks: A Distribution-Preserving Perspective},
+    @inproceedings{zhang2024rethinking,
+      title={Rethinking graph backdoor attacks: A distribution-preserving perspective},
       author={Zhang, Zhiwei and Lin, Minhua and Dai, Enyan and Wang, Suhang},
-      journal={arXiv preprint arXiv:2405.10757},
+      booktitle={Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+      pages={4386--4397},
       year={2024}
     }
 
